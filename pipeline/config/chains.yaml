@@ -1,0 +1,13 @@
+# Large chains to exclude (ADR-014). Matching is case- and punctuation-insensitive.
+# Multi-location specialty roasters are NOT listed here; the run report flags names with 5+ locations for review.
+deny:
+  - Starbucks
+  - Dunkin'
+  - Peet's Coffee
+  - Tim Hortons
+  - Dutch Bros
+  - Caribou Coffee
+  - Pret A Manger
+  - Panera Bread
+  - McCafé
+  - Costa Coffee

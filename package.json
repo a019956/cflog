@@ -1,0 +1,25 @@
+{
+  "name": "cflog",
+  "private": true,
+  "version": "0.1.0",
+  "description": "CoffeeLog: specialty roasters, cafés and their beans on a map.",
+  "workspaces": [
+    "packages/*",
+    "pipeline",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "format": "prettier --write .",
+    "pipeline": "npm run start --workspace @cflog/pipeline --",
+    "mobile": "npm run start --workspace @cflog/mobile"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.0"
+  }
+}

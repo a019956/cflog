@@ -1,0 +1,4 @@
+# Manual corrections applied on every run (ADR-008).
+add: [] # [{ id: manual-<slug>, cityId, name, kind, lat, lng, address, website }]
+hide: [] # [<cafeId>]  opt-outs, closed shops, false positives
+patch: {} # { <cafeId>: { website?, kind?, name?, platform? } }

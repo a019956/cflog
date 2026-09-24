@@ -1,0 +1,14 @@
+# Pipeline config (02 Architecture). WP-02 verifies the release id and category ids.
+overture:
+  release: null # pinned in WP-02, e.g. "2026-09-17.0"
+  categories: [coffee_shop, cafe, coffee_roastery]
+crawler:
+  userAgent: 'CoffeeLogBot/0.1 (+${CRAWLER_CONTACT_URL})'
+  minIntervalMsPerHost: 2000
+  hostConcurrency: 8
+  maxPagesPerSite: 6
+  timeoutMs: 15000
+  retries: 2
+limits:
+  maxBeansPerCafe: 200
+  maxMenuItemsPerCafe: 150

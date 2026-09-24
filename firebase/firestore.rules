@@ -1,0 +1,11 @@
+rules_version = '2';
+// CoffeeLog v1: public read of published data; no client writes (the pipeline uses the Admin SDK).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /cities/{cityId} { allow read: if true; allow write: if false; }
+    match /cityIndex/{docId} { allow read: if true; allow write: if false; }
+    match /cafes/{cafeId} { allow read: if true; allow write: if false; }
+    match /pipelineState/{docId} { allow read, write: if false; }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "project": "CoffeeLog",
+  "repo": "D:\\_CODING\\cflog",
+  "docs": "G:\\My Drive\\_ObsidianVault\\Coding\\CoffeeLog",
+  "phase": "building",
+  "milestone": "M1",
+  "current_wp": "WP-01",
+  "wp_status": "next",
+  "engine": "claude",
+  "engines": ["claude"],
+  "stop": { "status": "running" }
+}

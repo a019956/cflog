@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "plan-code work package report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["wp_id", "status", "summary", "files_changed", "commands_run", "acceptance", "deviations", "questions", "follow_ups"],
+  "properties": {
+    "wp_id": { "type": "string", "description": "Work package id from the brief, e.g. WP-03" },
+    "status": { "type": "string", "enum": ["done", "partial", "blocked"] },
+    "summary": { "type": "string", "description": "2-5 sentences: what was built and why, in plain language" },
+    "files_changed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "change", "note"],
+        "properties": {
+          "path": { "type": "string" },
+          "change": { "type": "string", "enum": ["added", "modified", "deleted", "renamed"] },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "commands_run": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command", "exit_code", "result"],
+        "properties": {
+          "command": { "type": "string" },
+          "exit_code": { "type": "integer" },
+          "result": { "type": "string", "description": "One line, e.g. '24 passed, 0 failed'" }
+        }
+      }
+    },
+    "acceptance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["criterion", "met", "evidence"],
+        "properties": {
+          "criterion": { "type": "string" },
+          "met": { "type": "boolean" },
+          "evidence": { "type": "string" }
+        }
+      }
+    },
+    "deviations": { "type": "array", "items": { "type": "string" }, "description": "Anything done differently from the brief, and why" },
+    "questions": { "type": "array", "items": { "type": "string" }, "description": "Unresolved ambiguities that need Claude or Min" },
+    "follow_ups": { "type": "array", "items": { "type": "string" }, "description": "Suggested next work, tech debt, missing conventions" }
+  }
+}

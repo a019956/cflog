@@ -1,0 +1,15 @@
+node_modules/
+.expo/
+dist/
+web-build/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+apps/mobile/android/
+apps/mobile/ios/
+pipeline/out/
+.plan-code/runs/
+*.log
+.DS_Store
+serviceAccount*.json

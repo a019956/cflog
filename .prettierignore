@@ -1,0 +1,6 @@
+node_modules
+.expo
+dist
+pipeline/out
+.plan-code/runs
+package-lock.json
