@@ -16,6 +16,7 @@ export interface CrawlCityOptions {
   sleep?: Sleep;
   now?: () => number;
   onResult?: (r: CrawlResult) => void;
+  pdfToText?: (bytes: Uint8Array) => Promise<string>;
 }
 
 export function userAgent(template: string, contactUrl: string): string {
@@ -32,12 +33,18 @@ export async function crawlCity(
     userAgent: userAgent(opts.crawler.userAgent, opts.contactUrl),
     timeoutMs: opts.crawler.timeoutMs,
     retries: opts.crawler.retries,
+    minRetryDelayMs: opts.crawler.minIntervalMsPerHost,
     transport: opts.transport,
     sleep,
   });
   const queue = new HostQueue(opts.crawler.minIntervalMsPerHost, sleep, opts.now);
   return mapPool(sites, opts.crawler.hostConcurrency, async (site) => {
-    const r = await crawlSite(site, { get, queue, maxPages: opts.crawler.maxPagesPerSite });
+    const r = await crawlSite(site, {
+      get,
+      queue,
+      maxPages: opts.crawler.maxPagesPerSite,
+      pdfToText: opts.pdfToText,
+    });
     opts.onResult?.(r);
     return r;
   });

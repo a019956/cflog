@@ -57,12 +57,15 @@ export function beansFromShopify(bodies: readonly unknown[], origin: string): Ra
     const products = (body as { products?: ShopifyProduct[] } | undefined)?.products;
     if (!Array.isArray(products)) continue;
     for (const p of products) {
-      const title = p.title?.trim();
+      if (!p || typeof p !== 'object') continue;
+      const title = typeof p.title === 'string' ? p.title.trim() : '';
       if (!title || seen.has(title.toLowerCase())) continue;
       const tags = tagList(p.tags);
       if (!isCoffeeProduct({ title, type: p.product_type, tags })) continue;
       seen.add(title.toLowerCase());
-      const variants = p.variants ?? [];
+      const variants = Array.isArray(p.variants)
+        ? p.variants.filter((v) => v && typeof v === 'object')
+        : [];
       const { price, size } = pickVariant(variants);
       out.push(
         enrichFromText(

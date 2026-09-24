@@ -169,7 +169,7 @@ export function toCandidates(
     if (!patch) continue;
     if (patch.name) c.name = patch.name;
     if (patch.kind) c.kind = patch.kind;
-    if (patch.website) c.website = cleanWebsite(patch.website) ?? patch.website;
+    if (patch.website) c.website = cleanWebsite(patch.website); // rejected URLs (social profiles, mailto:) clear the website
     if (patch.platform) c.platform = patch.platform;
   }
 

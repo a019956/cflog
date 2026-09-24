@@ -29,10 +29,15 @@ interface WooProduct {
   is_in_stock?: boolean;
 }
 
-const names = (xs?: WooTerm[]) => (xs ?? []).map((x) => x.name ?? '').filter(Boolean);
+const names = (xs?: WooTerm[]) =>
+  (Array.isArray(xs) ? xs : [])
+    .map((x) => (x && typeof x.name === 'string' ? x.name : ''))
+    .filter(Boolean);
 
 function attr(p: WooProduct, re: RegExp): string[] {
-  return (p.attributes ?? []).filter((a) => re.test(a.name ?? '')).flatMap((a) => names(a.terms));
+  return (Array.isArray(p.attributes) ? p.attributes : [])
+    .filter((a) => a && re.test(a.name ?? ''))
+    .flatMap((a) => names(a.terms));
 }
 
 export function beansFromWoo(bodies: readonly unknown[]): RawBean[] {
@@ -41,7 +46,8 @@ export function beansFromWoo(bodies: readonly unknown[]): RawBean[] {
   for (const body of bodies) {
     if (!Array.isArray(body)) continue;
     for (const p of body as WooProduct[]) {
-      const title = htmlToText(p.name).trim();
+      if (!p || typeof p !== 'object') continue;
+      const title = typeof p.name === 'string' ? htmlToText(p.name).trim() : '';
       if (!title || seen.has(title.toLowerCase())) continue;
       const cats = names(p.categories);
       const tags = names(p.tags);

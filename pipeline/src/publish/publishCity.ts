@@ -82,7 +82,29 @@ const emptyEntry = (): PipelineCafeState => ({
   hiddenRuns: 0,
 });
 
-/** Splits summaries into index docs under MAX_DOC_BYTES each. */
+/** Refresh "Updated N days ago" on unchanged cafés at most this often (one small merge write). */
+export const FRESHNESS_REFRESH_DAYS = 21;
+
+/** Hash of the place fields and crawl status that show on the café doc but not in its pages. */
+export function metaHashOf(c: Candidate, crawlStatus: string): string {
+  return shortHash(
+    JSON.stringify([
+      c.name,
+      c.kind,
+      c.address,
+      c.lat.toFixed(5),
+      c.lng.toFixed(5),
+      c.website ?? '',
+      c.phone ?? '',
+      c.instagram ?? '',
+      crawlStatus,
+    ]),
+  );
+}
+
+const daysBetween = (a: IsoDate, b: IsoDate) => (Date.parse(b) - Date.parse(a)) / 86_400_000;
+
+/** Splits summaries into index docs under MAX_DOC_BYTES each (never emits an empty shard). */
 export function shardIndex(cityId: string, cafes: CafeSummary[], now: IsoDate): CityIndexDoc[] {
   const docs: CityIndexDoc[] = [];
   let current: CafeSummary[] = [];
@@ -94,7 +116,7 @@ export function shardIndex(cityId: string, cafes: CafeSummary[], now: IsoDate): 
   });
   for (const s of cafes) {
     current.push(s);
-    if (docBytes(make(current)) > MAX_DOC_BYTES) {
+    if (current.length > 1 && docBytes(make(current)) > MAX_DOC_BYTES) {
       current.pop();
       docs.push(make(current));
       current = [s];
@@ -104,9 +126,7 @@ export function shardIndex(cityId: string, cafes: CafeSummary[], now: IsoDate): 
   return docs;
 }
 
-export async function publishCity(
-  input: PublishInput,
-): Promise<{
+export async function publishCity(input: PublishInput): Promise<{
   stats: PublishStats;
   state: PipelineStateDoc;
   summaries: CafeSummary[];
@@ -140,48 +160,102 @@ export async function publishCity(
   const written: Cafe[] = [];
   const seen = new Set<string>();
 
-  const carry = async (id: string, prev: PipelineCafeState) => {
-    let summary = prevSummaries.get(id);
-    if (!summary) {
-      const doc = await store.getCafe(id);
-      if (doc && !doc.hidden) summary = toSummary(doc);
+  /** Writes `doc` when forced or when its content hash differs from the previous state. */
+  const put = async (
+    doc: Cafe,
+    prev: PipelineCafeState | undefined,
+    force: boolean,
+  ): Promise<string> => {
+    const hash = cafeContentHash(doc);
+    if (!force && prev && prev.contentHash === hash) {
+      stats.unchanged++;
+      return hash;
     }
-    if (summary) summaries.push(summary);
-    nextCafes[id] = { ...prev, hiddenRuns: 0 };
-    stats.carried++;
+    await store.setCafe(doc);
+    written.push(doc);
+    if (prev) stats.updated++;
+    else stats.created++;
+    return hash;
   };
+
+  const basicDoc = (o: CafeOutcome): Cafe =>
+    buildCafeDoc({
+      candidate: o.candidate,
+      platform: o.crawl.platform,
+      crawlStatus: o.crawl.status,
+      beans: [],
+      menu: [],
+      overtureRelease: input.overtureRelease,
+      lastCrawledAt: o.crawl.status === 'ok' ? now : undefined,
+      now,
+    });
 
   for (let i = 0; i < input.outcomes.length; i++) {
     const o = input.outcomes[i]!;
     const id = o.candidate.id;
     seen.add(id);
     const prev = prevState.cafes[id];
+    const meta = metaHashOf(o.candidate, o.crawl.status);
+    const crawledOk = o.crawl.status === 'ok';
     try {
       if (!o.extraction) {
-        if (prev) {
-          await carry(id, prev);
+        if (!prev) {
+          // New café with nothing extracted yet: publish the basic place so it appears on the map.
+          const doc = basicDoc(o);
+          const hash = await put(doc, undefined, true);
+          summaries.push(toSummary(doc));
+          nextCafes[id] = {
+            ...emptyEntry(),
+            contentHash: hash,
+            crawlStatus: o.crawl.status,
+            metaHash: meta,
+            lastCrawledAt: doc.lastCrawledAt,
+          };
           continue;
         }
-        // New café with nothing extracted yet: publish the basic place so it appears on the map.
-        const doc = buildCafeDoc({
-          candidate: o.candidate,
-          platform: o.crawl.platform,
-          crawlStatus: o.crawl.status,
-          beans: [],
-          menu: [],
-          overtureRelease: input.overtureRelease,
-          lastCrawledAt: o.crawl.status === 'ok' ? now : undefined,
-          now,
-        });
-        await store.setCafe(doc);
-        written.push(doc);
-        stats.created++;
-        summaries.push(toSummary(doc));
-        nextCafes[id] = {
-          ...emptyEntry(),
-          contentHash: cafeContentHash(doc),
-          crawlStatus: o.crawl.status,
-        };
+        const returning = prev.hiddenRuns > 0;
+        if (returning || prev.metaHash !== meta || !prevSummaries.has(id)) {
+          // Place details, crawl status or visibility changed (or the index lost it): rebuild from the
+          // previous doc with the current candidate, keeping its beans and menu.
+          const prevDoc = await store.getCafe(id);
+          const doc = prevDoc
+            ? buildCafeDoc({
+                candidate: o.candidate,
+                platform: crawledOk ? o.crawl.platform : prevDoc.platform,
+                crawlStatus: o.crawl.status,
+                beans: prevDoc.beans,
+                menu: prevDoc.menu,
+                overtureRelease: input.overtureRelease,
+                lastCrawledAt: crawledOk ? now : prevDoc.lastCrawledAt,
+                now,
+              })
+            : basicDoc(o);
+          const hash = await put(doc, prevDoc ? prev : undefined, returning || !prevDoc);
+          summaries.push(toSummary(doc));
+          nextCafes[id] = {
+            ...(prevDoc ? prev : emptyEntry()),
+            contentHash: hash,
+            crawlStatus: o.crawl.status,
+            metaHash: meta,
+            lastCrawledAt: doc.lastCrawledAt,
+            hiddenRuns: 0,
+            // keep pagesHash only if the doc still carries data extracted from those pages
+            pagesHash: prevDoc ? prev.pagesHash : '',
+          };
+          continue;
+        }
+        // Unchanged: keep the doc; refresh the "updated" date now and then with one merge write.
+        let lastCrawledAt = prev.lastCrawledAt;
+        if (
+          crawledOk &&
+          (!lastCrawledAt || daysBetween(lastCrawledAt, now) >= FRESHNESS_REFRESH_DAYS)
+        ) {
+          await store.patchCafe(id, { lastCrawledAt: now });
+          lastCrawledAt = now;
+        }
+        summaries.push(prevSummaries.get(id)!);
+        nextCafes[id] = { ...prev, hiddenRuns: 0, lastCrawledAt };
+        stats.carried++;
         continue;
       }
 
@@ -229,14 +303,13 @@ export async function publishCity(
       });
       const { cafe: doc, trimmed } = fitDoc(built);
       if (trimmed) stats.trimmed.push(id);
-      const hash = cafeContentHash(doc);
-      if (prev && prev.contentHash === hash) {
-        stats.unchanged++;
-      } else {
-        await store.setCafe(doc);
-        written.push(doc);
-        if (prev) stats.updated++;
-        else stats.created++;
+      const writesBefore = written.length;
+      const hash = await put(doc, prev, !!prev && prev.hiddenRuns > 0);
+      let lastCrawledAt: IsoDate | undefined =
+        written.length > writesBefore ? now : prev?.lastCrawledAt;
+      if (!lastCrawledAt || daysBetween(lastCrawledAt, now) >= FRESHNESS_REFRESH_DAYS) {
+        await store.patchCafe(id, { lastCrawledAt: now });
+        lastCrawledAt = now;
       }
       summaries.push(toSummary(doc));
       nextCafes[id] = {
@@ -245,6 +318,8 @@ export async function publishCity(
         pagesHash: o.extraction.menuFresh ? o.pagesHash : '',
         lastExtractedAt: now,
         crawlStatus: o.crawl.status,
+        metaHash: meta,
+        lastCrawledAt,
         beanMiss,
         beanFirstSeen,
         hiddenRuns: 0,
@@ -259,8 +334,8 @@ export async function publishCity(
         const rp = prevState.cafes[rid];
         if (rp) {
           nextCafes[rid] = rp;
-          const s = prevSummaries.get(rid);
-          if (s) summaries.push(s);
+          const sm = prevSummaries.get(rid);
+          if (sm) summaries.push(sm);
         }
       }
       break;
@@ -279,10 +354,11 @@ export async function publishCity(
           continue;
         }
         if (runs === 1) {
-          await store.markHidden(id, now);
+          await store.patchCafe(id, { hidden: true, lastChangedAt: now });
           stats.hidden++;
         }
-        nextCafes[id] = { ...prev, hiddenRuns: runs };
+        // contentHash cleared so a returning café is always rewritten
+        nextCafes[id] = { ...prev, hiddenRuns: runs, contentHash: '' };
       } catch (err) {
         if (!(err instanceof WriteBudgetExceeded)) throw err;
         stats.stoppedAtWriteBudget = true;
@@ -293,8 +369,8 @@ export async function publishCity(
     for (const [id, prev] of Object.entries(prevState.cafes)) {
       if (seen.has(id)) continue;
       nextCafes[id] = prev;
-      const s = prevSummaries.get(id);
-      if (s) summaries.push(s);
+      const sm = prevSummaries.get(id);
+      if (sm) summaries.push(sm);
     }
   }
 

@@ -168,12 +168,61 @@ describe('GeminiExtractor', () => {
     expect(g.remaining).toBe(0);
   });
 
-  it('returns empty results for unparseable output', async () => {
+  it('throws on unparseable or empty output so the café is retried', async () => {
     const { transport } = fakeGemini([
-      { status: 200, json: { candidates: [{ content: { parts: [{ text: 'not json' }] } }] } },
+      {
+        status: 200,
+        json: {
+          candidates: [
+            { content: { parts: [{ text: '{"beans": [' }] }, finishReason: 'MAX_TOKENS' },
+          ],
+        },
+      },
+      { status: 200, json: { candidates: [] } },
     ]);
-    const g = new GeminiExtractor({ apiKey: 'k', rpm: 60, maxCalls: 2, transport });
-    expect(await g.extract('A', 'both', PAGES)).toEqual({ beans: [], menu: [] });
+    const g = new GeminiExtractor({
+      apiKey: 'k',
+      rpm: 60,
+      maxCalls: 5,
+      transport,
+      sleep: async () => {},
+    });
+    await expect(g.extract('A', 'both', PAGES)).rejects.toThrow(/invalid JSON \(MAX_TOKENS\)/);
+    await expect(g.extract('B', 'both', PAGES)).rejects.toThrow(/empty response/);
+  });
+
+  it('treats a daily quota or persistent 429s as budget exhaustion', async () => {
+    const daily = {
+      status: 429,
+      json: {
+        error: {
+          message:
+            'Quota exceeded for metric generate_content_free_tier_requests, limit: GenerateRequestsPerDayPerProjectPerModel',
+        },
+      },
+    };
+    const { transport } = fakeGemini([daily]);
+    const g = new GeminiExtractor({
+      apiKey: 'k',
+      rpm: 60,
+      maxCalls: 5,
+      transport,
+      sleep: async () => {},
+    });
+    await expect(g.extract('A', 'both', PAGES)).rejects.toBeInstanceOf(LlmBudgetExceeded);
+    expect(g.calls).toBe(1);
+    const busy = { status: 429, json: { error: { message: 'slow down' } } };
+    const f2 = fakeGemini([busy, busy, busy, busy]);
+    const g2 = new GeminiExtractor({
+      apiKey: 'k',
+      rpm: 60,
+      maxCalls: 10,
+      transport: f2.transport,
+      sleep: async () => {},
+      maxRetries: 3,
+    });
+    await expect(g2.extract('A', 'both', PAGES)).rejects.toBeInstanceOf(LlmBudgetExceeded);
+    expect(g2.calls).toBe(4);
   });
 });
 

@@ -105,6 +105,7 @@ export async function runCity(o: CityRunOptions): Promise<CityRunReport> {
       contactUrl: o.contactUrl,
       transport: o.transport,
       sleep: o.sleep,
+      pdfToText: pdfText,
       onResult: () => {
         done++;
         if (done % 25 === 0) log(`[${o.cityId}] crawl: ${done}/${candidates.length}`);
@@ -124,8 +125,22 @@ export async function runCity(o: CityRunOptions): Promise<CityRunReport> {
   });
   const changedIds = new Set(changed.map((c) => c.cafeId));
 
-  // 5. Store JSON
-  const storeBeans = new Map(changed.map((cr) => [cr.cafeId, beansFromStorePages(cr)]));
+  // 5. Store JSON (one bad catalogue never stops the city)
+  const errors: CityRunReport['errors'] = [];
+  const storeBeans = new Map(
+    changed.map((cr) => {
+      try {
+        return [cr.cafeId, beansFromStorePages(cr)] as const;
+      } catch (err) {
+        errors.push({
+          cafeId: cr.cafeId,
+          name: byId.get(cr.cafeId)!.name,
+          error: `store JSON: ${(err as Error).message}`,
+        });
+        return [cr.cafeId, null] as const;
+      }
+    }),
+  );
 
   // 6. Gemini jobs (priority order, within budget)
   const jobs: LlmJob[] = planLlmJobs(
@@ -137,10 +152,10 @@ export async function runCity(o: CityRunOptions): Promise<CityRunReport> {
   );
   const llmResults = new Map<string, ExtractionResult>();
   const llmSkipped: string[] = [];
-  const errors: CityRunReport['errors'] = [];
   let llmErrors = 0;
+  let quotaOut = false;
   for (const job of jobs) {
-    if (!o.gemini) {
+    if (!o.gemini || quotaOut) {
       llmSkipped.push(job.cafeId);
       continue;
     }
@@ -148,7 +163,10 @@ export async function runCity(o: CityRunOptions): Promise<CityRunReport> {
       llmResults.set(job.cafeId, await o.gemini.extract(job.cafeName, job.mode, job.pages));
     } catch (err) {
       if (err instanceof LlmBudgetExceeded) {
+        // Call cap or daily quota reached: stop calling Gemini for the rest of this run.
+        quotaOut = true;
         llmSkipped.push(job.cafeId);
+        log(`[${o.cityId}] gemini: ${(err as Error).message}`);
         continue;
       }
       llmErrors++;

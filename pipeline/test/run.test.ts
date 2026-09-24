@@ -39,7 +39,7 @@ function web(version: number) {
     'https://roasters.example/': {
       text: '<html><script src="https://cdn.shopify.com/a.js"></script><body><a href="/pages/menu">Menu</a></body></html>',
     },
-    'https://roasters.example/products.json?limit=250&page=1': {
+    'https://roasters.example/products.json?limit=100&page=1': {
       contentType: 'application/json',
       text: JSON.stringify({
         products: [

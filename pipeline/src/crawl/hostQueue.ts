@@ -1,5 +1,16 @@
-// Per-host politeness: requests to one host run one at a time, at least `intervalMs` apart.
+// Per-host politeness: requests to one site run one at a time, at least `intervalMs` apart.
+// Hosts are keyed without a leading "www." so example.com and www.example.com share one slot.
 import type { Sleep } from './http.js';
+
+export const hostKey = (hostOrUrl: string): string => {
+  let host = hostOrUrl;
+  try {
+    host = new URL(hostOrUrl).hostname;
+  } catch {
+    /* already a hostname */
+  }
+  return host.toLowerCase().replace(/^www\./, '');
+};
 
 export class HostQueue {
   private readonly last = new Map<string, number>();
@@ -14,14 +25,17 @@ export class HostQueue {
 
   /** Raise the interval for one host (robots.txt Crawl-delay), capped at 30 s. */
   setHostInterval(host: string, ms: number): void {
+    host = hostKey(host);
     this.minInterval.set(host, Math.min(Math.max(ms, this.intervalMs), 30_000));
   }
 
   intervalFor(host: string): number {
+    host = hostKey(host);
     return this.minInterval.get(host) ?? this.intervalMs;
   }
 
   run<T>(host: string, fn: () => Promise<T>): Promise<T> {
+    host = hostKey(host);
     const prev = this.tails.get(host) ?? Promise.resolve();
     const next = prev
       .catch(() => undefined)

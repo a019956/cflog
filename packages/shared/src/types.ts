@@ -141,6 +141,10 @@ export interface PipelineCafeState {
   beanFirstSeen: Record<string, IsoDate>;
   /** consecutive runs the café was absent from discovery (deleted at 4) */
   hiddenRuns: number;
+  /** hash of place fields + crawl status as last written to the doc */
+  metaHash?: string;
+  /** lastCrawledAt as last written to the doc (drives the 21-day freshness refresh) */
+  lastCrawledAt?: IsoDate;
 }
 
 /** `pipelineState/{cityId}`: pipeline-only manifest, never read by the app. */

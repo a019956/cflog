@@ -287,4 +287,63 @@ describe('publishCity', () => {
     expect(docs.flatMap((d) => d.cafes)).toHaveLength(4000);
     for (const d of docs) expect(JSON.stringify(d).length).toBeLessThan(900_000);
   });
+
+  it('brings a hidden café back and rewrites it', async () => {
+    const store = new MemoryStore();
+    await run(store, [outcome('a', [raw('Guji')]), outcome('b', [raw('X')])], T1);
+    await run(store, [outcome('a', null)], T2); // b hidden
+    expect(store.cafes.get('b')!.hidden).toBe(true);
+    const r = await run(store, [outcome('a', null), outcome('b', null)], T3); // b back, pages unchanged
+    expect(store.cafes.get('b')!.hidden).toBe(false);
+    expect(store.cafes.get('b')!.beans.map((x) => x.name)).toEqual(['X']);
+    expect(store.cityIndex.get('boston')!.cafes.map((c) => c.id)).toEqual(['a', 'b']);
+    expect(r.state.cafes.b!.hiddenRuns).toBe(0);
+  });
+
+  it('rewrites the doc when place details change without re-extraction', async () => {
+    const store = new MemoryStore();
+    await run(store, [outcome('a', [raw('Guji')])], T1);
+    const renamed = {
+      ...outcome('a', null),
+      candidate: cand('a', { name: 'Renamed Cafe', website: 'https://new.example' }),
+    };
+    const r = await run(store, [renamed], T2);
+    expect(r.stats.updated).toBe(1);
+    expect(store.cafes.get('a')).toMatchObject({
+      name: 'Renamed Cafe',
+      website: 'https://new.example',
+    });
+    expect(store.cafes.get('a')!.beans).toHaveLength(1);
+    expect(store.cityIndex.get('boston')!.cafes[0]!.name).toBe('Renamed Cafe');
+  });
+
+  it('refreshes lastCrawledAt on unchanged cafés every 21 days with one merge write', async () => {
+    const store = new MemoryStore();
+    await run(store, [outcome('a', [raw('Guji')])], T1);
+    const w = store.writes;
+    await run(store, [outcome('a', null)], '2026-10-20T09:00:00.000Z'); // 22 days later
+    expect(store.cafes.get('a')!.lastCrawledAt).toBe('2026-10-20T09:00:00.000Z');
+    expect(store.writes - w).toBe(2); // patch + state
+  });
+
+  it('never emits an empty index shard', () => {
+    const huge = {
+      id: 'x',
+      name: 'y'.repeat(950_000),
+      kind: 'cafe' as const,
+      lat: 0,
+      lng: 0,
+      dataStatus: 'none' as const,
+      beanCount: 0,
+      sellsOnline: false,
+      roastLevels: [],
+      processes: [],
+      originCountries: [],
+      flavorFamilies: [],
+      varieties: [],
+      hasDecaf: false,
+    };
+    const docs = shardIndex('nyc', [huge, { ...huge, id: 'z' }], T1);
+    expect(docs.every((d) => d.cafes.length > 0)).toBe(true);
+  });
 });

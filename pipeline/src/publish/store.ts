@@ -8,7 +8,8 @@ export interface DataStore {
   getCityIndex(cityId: string): Promise<CityIndexDoc | null>;
   getCafe(id: string): Promise<Cafe | null>;
   setCafe(cafe: Cafe): Promise<void>;
-  markHidden(id: string, at: string): Promise<void>;
+  /** merge-updates top-level fields of an existing café doc */
+  patchCafe(id: string, fields: Partial<Cafe>): Promise<void>;
   deleteCafe(id: string): Promise<void>;
   setCityIndex(docs: CityIndexDoc[], cityId: string): Promise<void>;
   setCity(doc: CityDoc): Promise<void>;
@@ -35,7 +36,7 @@ export function withWriteBudget(
     getCityIndex: (c) => inner.getCityIndex(c),
     getCafe: (id) => inner.getCafe(id),
     setCafe: (cafe) => guard(() => inner.setCafe(cafe)),
-    markHidden: (id, at) => guard(() => inner.markHidden(id, at)),
+    patchCafe: (id, fields) => guard(() => inner.patchCafe(id, fields)),
     deleteCafe: (id) => guard(() => inner.deleteCafe(id)),
     setCityIndex: (docs, cityId) => guard(() => inner.setCityIndex(docs, cityId), docs.length),
     setCity: (doc) => guard(() => inner.setCity(doc)),
@@ -80,10 +81,10 @@ export class MemoryStore implements DataStore {
     this.writes++;
     this.cafes.set(cafe.id, structuredClone(cafe));
   }
-  async markHidden(id: string, at: string) {
+  async patchCafe(id: string, fields: Partial<Cafe>) {
     this.writes++;
     const c = this.cafes.get(id);
-    if (c) this.cafes.set(id, { ...c, hidden: true, lastChangedAt: at });
+    if (c) this.cafes.set(id, { ...c, ...structuredClone(fields) });
   }
   async deleteCafe(id: string) {
     this.writes++;

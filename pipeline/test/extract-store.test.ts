@@ -156,3 +156,27 @@ describe('WooCommerce extraction', () => {
     });
   });
 });
+
+describe('malformed store data', () => {
+  it('skips null or odd-shaped products instead of crashing', () => {
+    const body = {
+      products: [
+        null,
+        42,
+        { title: 7 },
+        {
+          title: 'Kenya AA',
+          product_type: 'Coffee',
+          tags: [null, 'coffee'],
+          variants: [null, { price: '20', title: '12 oz' }],
+        },
+      ],
+    };
+    expect(beansFromShopify([body], 'https://x.example').map((b) => b.name)).toEqual(['Kenya AA']);
+    expect(
+      beansFromWoo([
+        [null, { name: 'Peru', categories: [null, { name: 'Coffee' }], attributes: [null] }],
+      ]).map((b) => b.name),
+    ).toEqual(['Peru']);
+  });
+});

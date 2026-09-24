@@ -203,6 +203,15 @@ function responseText(json: unknown): string | undefined {
   return parts?.map((p) => p.text ?? '').join('') || undefined;
 }
 
+function finishReason(json: unknown): string | undefined {
+  return (json as { candidates?: { finishReason?: string }[] })?.candidates?.[0]?.finishReason;
+}
+
+/** 429 caused by a per-day quota (retrying today is pointless). */
+function isDailyQuota(json: unknown): boolean {
+  return /per ?day|PerDay|daily/i.test(JSON.stringify(json ?? ''));
+}
+
 function retryDelayMs(json: unknown): number | undefined {
   const details =
     (json as { error?: { details?: { retryDelay?: string }[] } })?.error?.details ?? [];
@@ -261,12 +270,24 @@ export class GeminiExtractor {
       const res = await transport(url, body, this.opts.apiKey);
       if (res.status === 200) {
         const text = responseText(res.json);
-        if (!text) return { beans: [], menu: [] };
+        // Missing or truncated output is an error, so the café is retried next run instead of
+        // being recorded as "nothing found".
+        if (!text)
+          throw new Error(
+            `Gemini ${this.model}: empty response (${finishReason(res.json) ?? 'no candidates'})`,
+          );
+        let parsed: unknown;
         try {
-          return sanitizeExtraction(JSON.parse(text), mode);
+          parsed = JSON.parse(text);
         } catch {
-          return { beans: [], menu: [] };
+          throw new Error(
+            `Gemini ${this.model}: invalid JSON (${finishReason(res.json) ?? 'unknown finish reason'})`,
+          );
         }
+        return sanitizeExtraction(parsed, mode);
+      }
+      if (res.status === 429 && isDailyQuota(res.json)) {
+        throw new LlmBudgetExceeded(`Gemini daily quota exhausted for ${this.model}`);
       }
       if (res.status === 429 || res.status >= 500) {
         await sleep(retryDelayMs(res.json) ?? 5000 * 2 ** attempt);
@@ -276,6 +297,9 @@ export class GeminiExtractor {
         (res.json as { error?: { message?: string } })?.error?.message ?? `HTTP ${res.status}`;
       throw new Error(`Gemini ${this.model}: ${msg}`);
     }
-    throw new Error(`Gemini ${this.model}: still rate-limited after ${maxRetries + 1} attempts`);
+    // Still rate-limited after all retries: treat as out of quota for this run.
+    throw new LlmBudgetExceeded(
+      `Gemini ${this.model}: still rate-limited after ${maxRetries + 1} attempts`,
+    );
   }
 }

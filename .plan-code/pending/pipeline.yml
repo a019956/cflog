@@ -21,6 +21,9 @@ concurrency:
   group: pipeline
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -34,8 +37,11 @@ jobs:
     steps:
       - name: Skip cities not selected
         id: sel
+        env:
+          INPUT_CITY: ${{ github.event.inputs.city }}
+          MATRIX_CITY: ${{ matrix.city }}
         run: |
-          if [ -n "${{ github.event.inputs.city }}" ] && [ "${{ github.event.inputs.city }}" != "${{ matrix.city }}" ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; fi
+          if [ -n "$INPUT_CITY" ] && [ "$INPUT_CITY" != "$MATRIX_CITY" ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/checkout@v4
         if: steps.sel.outputs.skip != 'true'
       - uses: actions/setup-node@v4
@@ -56,11 +62,18 @@ jobs:
           PIPELINE_MAX_WRITES: ${{ vars.PIPELINE_MAX_WRITES || '6000' }}
           CRAWLER_CONTACT_URL: ${{ vars.CRAWLER_CONTACT_URL || 'https://github.com/a019956/cflog#bot' }}
           CONTACT_EMAIL: ${{ vars.CONTACT_EMAIL }}
+          # Inputs go through env (never interpolated into the script) and are validated.
+          MATRIX_CITY: ${{ matrix.city }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+          INPUT_MAX_CAFES: ${{ github.event.inputs.max_cafes }}
         run: |
-          ARGS="--city ${{ matrix.city }}"
-          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
-          if [ -n "${{ github.event.inputs.max_cafes }}" ]; then ARGS="$ARGS --max-cafes ${{ github.event.inputs.max_cafes }}"; fi
-          npm run pipeline -- $ARGS
+          ARGS=(--city "$MATRIX_CITY")
+          if [ "$INPUT_DRY_RUN" = "true" ]; then ARGS+=(--dry-run); fi
+          if [ -n "$INPUT_MAX_CAFES" ]; then
+            if ! [[ "$INPUT_MAX_CAFES" =~ ^[0-9]+$ ]]; then echo "max_cafes must be a number" >&2; exit 2; fi
+            ARGS+=(--max-cafes "$INPUT_MAX_CAFES")
+          fi
+          npm run pipeline -- "${ARGS[@]}"
       - name: Upload report
         if: always() && steps.sel.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
