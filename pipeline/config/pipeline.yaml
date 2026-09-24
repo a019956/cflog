@@ -1,7 +1,17 @@
-# Pipeline config (02 Architecture). WP-02 verifies the release id and category ids.
+# Pipeline config (02 Architecture). Loaded and validated by src/config.ts.
 overture:
-  release: null # pinned in WP-02, e.g. "2026-09-17.0"
-  categories: [coffee_shop, cafe, coffee_roastery]
+  # Pinned release. The 2026-09-23.0 release replaced `categories` with `taxonomy` + `basic_category`.
+  # Check category ids with: npm run pipeline -- --inspect-categories --city boston
+  release: '2026-09-23.0'
+  # {release} is substituted. Tests and local runs can point this at a local Parquet file.
+  source: 's3://overturemaps-us-west-2/release/{release}/theme=places/type=place/*'
+  primaryCategories: [coffee_shop, coffee_roastery, cafe]
+  alternateCategories: [coffee_shop, coffee_roastery]
+  roasterCategories: [coffee_roastery]
+  minConfidence: 0.5
+discover:
+  dedupeMeters: 50
+  multiLocationThreshold: 5
 crawler:
   userAgent: 'CoffeeLogBot/0.1 (+${CRAWLER_CONTACT_URL})'
   minIntervalMsPerHost: 2000

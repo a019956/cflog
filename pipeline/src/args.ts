@@ -6,9 +6,13 @@ export interface PipelineArgs {
   dryRun: boolean;
   maxCafes: number | null;
   skipLlm: boolean;
+  /** debug: list Overture categories of coffee-sounding places, then exit */
+  inspectCategories: boolean;
+  /** read Overture from this Parquet path/glob instead of the configured source */
+  overtureSource: string | null;
 }
 
-/** Parses `npm run pipeline -- [--city nyc] [--dry-run] [--max-cafes N] [--skip-llm]` (02 § Pipeline CLI). */
+/** Parses `npm run pipeline -- [--city nyc] [--dry-run] [--max-cafes N] [--skip-llm] [--inspect-categories] [--overture-source PATH]`. */
 export function parsePipelineArgs(argv: string[]): PipelineArgs {
   const { values } = parseArgs({
     args: argv,
@@ -17,6 +21,8 @@ export function parsePipelineArgs(argv: string[]): PipelineArgs {
       'dry-run': { type: 'boolean', default: false },
       'max-cafes': { type: 'string' },
       'skip-llm': { type: 'boolean', default: false },
+      'inspect-categories': { type: 'boolean', default: false },
+      'overture-source': { type: 'string' },
     },
     strict: true,
   });
@@ -36,5 +42,7 @@ export function parsePipelineArgs(argv: string[]): PipelineArgs {
     dryRun: values['dry-run'] ?? false,
     maxCafes,
     skipLlm: values['skip-llm'] ?? false,
+    inspectCategories: values['inspect-categories'] ?? false,
+    overtureSource: values['overture-source'] ?? null,
   };
 }

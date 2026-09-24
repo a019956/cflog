@@ -8,20 +8,34 @@ describe('parsePipelineArgs', () => {
       dryRun: false,
       maxCafes: null,
       skipLlm: false,
+      inspectCategories: false,
+      overtureSource: null,
     });
   });
   it('parses flags', () => {
     expect(
-      parsePipelineArgs(['--city', 'boston', '--dry-run', '--max-cafes', '5', '--skip-llm']),
-    ).toEqual({
+      parsePipelineArgs([
+        '--city',
+        'boston',
+        '--dry-run',
+        '--max-cafes',
+        '5',
+        '--skip-llm',
+        '--overture-source',
+        'x.parquet',
+      ]),
+    ).toMatchObject({
       cities: ['boston'],
       dryRun: true,
       maxCafes: 5,
       skipLlm: true,
+      overtureSource: 'x.parquet',
     });
+    expect(parsePipelineArgs(['--inspect-categories']).inspectCategories).toBe(true);
   });
-  it('rejects unknown cities and bad numbers', () => {
+  it('rejects unknown cities, bad numbers and unknown flags', () => {
     expect(() => parsePipelineArgs(['--city', 'austin'])).toThrow(/Unknown city/);
     expect(() => parsePipelineArgs(['--max-cafes', '0'])).toThrow(/positive integer/);
+    expect(() => parsePipelineArgs(['--nope'])).toThrow();
   });
 });
