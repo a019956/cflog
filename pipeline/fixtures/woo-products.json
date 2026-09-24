@@ -1,0 +1,31 @@
+[
+  {
+    "name": "Kenya Nyeri AA",
+    "permalink": "https://woo.example/product/kenya-nyeri-aa/",
+    "short_description": "<p>Bright and juicy.</p>",
+    "description": "<p>From the Nyeri county cooperative.</p>",
+    "prices": { "price": "2100", "currency_minor_unit": 2, "currency_code": "USD" },
+    "categories": [{ "name": "Coffee" }],
+    "tags": [{ "name": "Single Origin" }],
+    "attributes": [
+      { "name": "Origin", "terms": [{ "name": "Kenya" }] },
+      { "name": "Process", "terms": [{ "name": "Washed" }] },
+      { "name": "Roast Level", "terms": [{ "name": "Light" }] },
+      {
+        "name": "Tasting Notes",
+        "terms": [{ "name": "Blackcurrant, grapefruit" }, { "name": "Brown sugar" }]
+      },
+      { "name": "Variety", "terms": [{ "name": "SL28" }, { "name": "SL34" }] },
+      { "name": "Bag Size", "terms": [{ "name": "12 oz" }] }
+    ],
+    "is_in_stock": true
+  },
+  {
+    "name": "Tote Bag",
+    "permalink": "https://woo.example/product/tote/",
+    "prices": { "price": "1500", "currency_minor_unit": 2, "currency_code": "USD" },
+    "categories": [{ "name": "Merch" }],
+    "attributes": [],
+    "is_in_stock": true
+  }
+]

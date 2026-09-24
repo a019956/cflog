@@ -6,6 +6,7 @@ export * from './origins';
 export * from './cities';
 export * from './types';
 export * from './filters';
+export * from './products';
 
 export const OPENFREEMAP_STYLE = {
   light: 'https://tiles.openfreemap.org/styles/positron',

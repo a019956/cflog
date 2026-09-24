@@ -1,0 +1,70 @@
+{
+  "products": [
+    {
+      "title": "Ethiopia Guji Hambela",
+      "handle": "ethiopia-guji-hambela",
+      "product_type": "Coffee",
+      "tags": ["coffee", "single origin", "Roast: Light"],
+      "body_html": "<p>Tasting notes: Blueberry, jasmine &amp; milk chocolate.</p><p>Process: Natural</p><p>Variety: Heirloom</p><p>Region: Guji, Ethiopia</p>",
+      "variants": [
+        { "title": "2 lb / Whole Bean", "price": "60.00", "available": true },
+        { "title": "12 oz / Whole Bean", "price": "22.00", "available": true }
+      ]
+    },
+    {
+      "title": "Sample House Blend",
+      "handle": "house-blend",
+      "product_type": "Coffee",
+      "tags": "coffee, blend",
+      "body_html": "<p>A blend of Brazil and Colombia. Medium roast.</p><p>Notes: cocoa, toffee, almond</p>",
+      "variants": [
+        { "title": "12 oz / Whole Bean", "price": "17.00", "available": false },
+        { "title": "5 lb", "price": "70.00", "available": false }
+      ]
+    },
+    {
+      "title": "Logo Mug",
+      "handle": "mug",
+      "product_type": "Merch",
+      "tags": [],
+      "body_html": "",
+      "variants": [{ "price": "18.00" }]
+    },
+    {
+      "title": "Monthly Coffee Subscription",
+      "handle": "sub",
+      "product_type": "Subscription",
+      "tags": ["coffee"],
+      "variants": [{ "price": "20.00" }]
+    },
+    {
+      "title": "Decaf Colombia",
+      "handle": "decaf-colombia",
+      "product_type": "Coffee",
+      "tags": ["coffee"],
+      "body_html": "<p>Swiss Water decaffeinated coffee from Huila. We taste: caramel, red apple.</p>",
+      "variants": [{ "title": "340g", "price": "19.50", "available": true }]
+    },
+    {
+      "title": "Costa Rica Tarrazu Honey",
+      "handle": "costa-rica-honey",
+      "product_type": "Coffee",
+      "tags": ["coffee"],
+      "body_html": "<p>Honey sweetness with notes of peach. Varietal: Caturra, Catuai.</p>",
+      "variants": [{ "title": "12oz", "price": "21", "available": true }]
+    },
+    {
+      "title": "Ceramic Dripper",
+      "handle": "dripper",
+      "product_type": "Brewing Equipment",
+      "variants": [{ "price": "30.00" }]
+    },
+    {
+      "title": "Earl Grey",
+      "handle": "earl-grey",
+      "product_type": "Tea",
+      "tags": ["tea"],
+      "variants": [{ "price": "12.00" }]
+    }
+  ]
+}
