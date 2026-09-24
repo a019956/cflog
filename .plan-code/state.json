@@ -3,10 +3,14 @@
   "repo": "D:\\_CODING\\cflog",
   "docs": "G:\\My Drive\\_ObsidianVault\\Coding\\CoffeeLog",
   "phase": "building",
-  "milestone": "M1",
-  "current_wp": "WP-01",
+  "milestone": "M2",
+  "current_wp": "WP-03",
   "wp_status": "next",
   "engine": "claude",
-  "engines": ["claude"],
-  "stop": { "status": "running" }
+  "engines": [
+    "claude"
+  ],
+  "stop": {
+    "status": "running"
+  }
 }
