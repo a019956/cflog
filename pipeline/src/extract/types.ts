@@ -20,6 +20,8 @@ export interface RawBean {
   priceUsd?: number;
   sizeGrams?: number;
   inStock?: boolean;
+  /** flavor family ids suggested by the LLM for notes the dictionary misses (validated in normalise) */
+  flavorFamilies?: string[];
   source: BeanSource;
 }
 
