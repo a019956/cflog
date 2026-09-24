@@ -1,0 +1,71 @@
+name: Weekly data pipeline
+on:
+  schedule:
+    - cron: '0 9 * * 1' # Mondays 09:00 UTC (ADR-003)
+  workflow_dispatch:
+    inputs:
+      city:
+        description: 'One city (nyc, philadelphia, boston) or empty for all'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry run (no Firestore writes)'
+        type: boolean
+        default: false
+      max_cafes:
+        description: 'Limit cafés per city (partial run; vanished cafés are not hidden)'
+        required: false
+        default: ''
+
+concurrency:
+  group: pipeline
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      # Sequential so Gemini's per-minute limit and Firestore's daily write quota are shared safely.
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        city: [nyc, philadelphia, boston]
+    steps:
+      - name: Skip cities not selected
+        id: sel
+        run: |
+          if [ -n "${{ github.event.inputs.city }}" ] && [ "${{ github.event.inputs.city }}" != "${{ matrix.city }}" ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/checkout@v4
+        if: steps.sel.outputs.skip != 'true'
+      - uses: actions/setup-node@v4
+        if: steps.sel.outputs.skip != 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        if: steps.sel.outputs.skip != 'true'
+      - name: Run pipeline
+        if: steps.sel.outputs.skip != 'true'
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          GEMINI_RPM: ${{ vars.GEMINI_RPM || '10' }}
+          GEMINI_MAX_CALLS: ${{ vars.GEMINI_MAX_CALLS || '300' }}
+          PIPELINE_MAX_WRITES: ${{ vars.PIPELINE_MAX_WRITES || '6000' }}
+          CRAWLER_CONTACT_URL: ${{ vars.CRAWLER_CONTACT_URL || 'https://github.com/a019956/cflog#bot' }}
+          CONTACT_EMAIL: ${{ vars.CONTACT_EMAIL }}
+        run: |
+          ARGS="--city ${{ matrix.city }}"
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          if [ -n "${{ github.event.inputs.max_cafes }}" ]; then ARGS="$ARGS --max-cafes ${{ github.event.inputs.max_cafes }}"; fi
+          npm run pipeline -- $ARGS
+      - name: Upload report
+        if: always() && steps.sel.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-report-${{ matrix.city }}
+          path: pipeline/out/
+          if-no-files-found: ignore
+          retention-days: 30

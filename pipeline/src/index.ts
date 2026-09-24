@@ -1,5 +1,4 @@
 // CoffeeLog weekly pipeline (02 Architecture): discover → crawl → extract → normalise → publish → report.
-// Implemented so far: discover (WP-02). Later stages are added by WP-03..WP-06.
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,17 +7,22 @@ import { parsePipelineArgs, type PipelineArgs } from './args.js';
 import { ConfigError, loadConfig } from './config.js';
 import {
   buildCategoryInspectionQuery,
-  discoverCity,
   findMultiLocation,
   queryOverturePlaces,
   resolveSource,
   runDuckDb,
   type Candidate,
 } from './discover/index.js';
+import { GeminiExtractor } from './extract/index.js';
+import { FirestoreStore, firestoreFromEnv, MemoryStore, withWriteBudget } from './publish/index.js';
+import { reportMarkdown, runCity, type CityRunReport } from './run.js';
 
 export const OUT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../out');
 
-const PENDING_STAGES = ['crawl', 'extract', 'normalise', 'publish'] as const;
+const envNum = (name: string, fallback: number) => {
+  const v = Number(process.env[name]);
+  return Number.isFinite(v) && v > 0 ? v : fallback;
+};
 
 async function inspectCategories(args: PipelineArgs): Promise<void> {
   const config = await loadConfig();
@@ -38,41 +42,79 @@ async function inspectCategories(args: PipelineArgs): Promise<void> {
 
 async function run(args: PipelineArgs): Promise<number> {
   const config = await loadConfig();
+  if (args.overtureSource) config.pipeline.overture.source = args.overtureSource;
+  const now = new Date().toISOString();
+  const contactUrl = process.env.CRAWLER_CONTACT_URL || 'https://github.com/a019956/cflog#bot';
+  const maxWrites = envNum('PIPELINE_MAX_WRITES', 18000);
+
+  const inner = args.dryRun ? new MemoryStore() : new FirestoreStore(firestoreFromEnv());
+  const store = withWriteBudget(inner, maxWrites);
+
+  let gemini: GeminiExtractor | null = null;
+  if (!args.skipLlm) {
+    if (process.env.GEMINI_API_KEY) {
+      gemini = new GeminiExtractor({
+        apiKey: process.env.GEMINI_API_KEY,
+        model: process.env.GEMINI_MODEL || undefined,
+        rpm: envNum('GEMINI_RPM', 10),
+        maxCalls: envNum('GEMINI_MAX_CALLS', 400),
+      });
+    } else {
+      console.warn(
+        '[pipeline] GEMINI_API_KEY not set — Gemini extraction skipped (store JSON only).',
+      );
+    }
+  }
+
   console.log(
-    `[pipeline] cities=${args.cities.join(',')} dryRun=${args.dryRun} maxCafes=${args.maxCafes ?? 'all'} skipLlm=${args.skipLlm} overture=${config.pipeline.overture.release}`,
+    `[pipeline] cities=${args.cities.join(',')} dryRun=${args.dryRun} maxCafes=${args.maxCafes ?? 'all'} gemini=${gemini ? gemini.model : 'off'} overture=${config.pipeline.overture.release} maxWrites=${maxWrites}`,
   );
   await mkdir(OUT_DIR, { recursive: true });
-  const all: Candidate[] = [];
+
+  const reports: CityRunReport[] = [];
+  const allCandidates: Candidate[] = [];
+  let failed = false;
   for (const cityId of args.cities) {
-    const result = await discoverCity(cityId, config, (bbox) =>
-      queryOverturePlaces(config.pipeline.overture, bbox, args.overtureSource ?? undefined),
-    );
-    const candidates = args.maxCafes
-      ? result.candidates.slice(0, args.maxCafes)
-      : result.candidates;
-    all.push(...result.candidates);
-    const byReason = result.dropped.reduce<Record<string, number>>(
-      (acc, d) => ({ ...acc, [d.reason]: (acc[d.reason] ?? 0) + 1 }),
-      {},
-    );
-    console.log(
-      `[discover] ${cityId}: ${result.candidates.length} candidates (${candidates.filter((c) => c.website).length} with website shown of ${candidates.length}); dropped ${JSON.stringify(byReason)}`,
-    );
-    const file = path.join(OUT_DIR, `candidates-${cityId}.json`);
-    await writeFile(file, JSON.stringify({ ...result, candidates }, null, 2));
-    console.log(`[discover] wrote ${path.relative(process.cwd(), file)}`);
+    const report = await runCity({
+      cityId,
+      config,
+      store,
+      gemini,
+      contactUrl,
+      maxCafes: args.maxCafes,
+      now,
+      query: (bbox) => queryOverturePlaces(config.pipeline.overture, bbox),
+      log: (m) => console.log(m),
+      onDiscover: (c) => allCandidates.push(...c),
+    });
+    reports.push(report);
+    if (report.failedCrawlRatio > 0.5) failed = true;
+    if (args.dryRun && inner instanceof MemoryStore) {
+      const cafes = [...inner.cafes.values()].filter((c) => c.cityId === cityId);
+      await writeFile(path.join(OUT_DIR, `cafes-${cityId}.json`), JSON.stringify(cafes, null, 2));
+    }
   }
-  const multi = findMultiLocation(all, config.pipeline.discover.multiLocationThreshold);
-  if (multi.length > 0) {
-    console.log(
-      `[discover] multi-location names (≥${config.pipeline.discover.multiLocationThreshold}) — review for chains.yaml:`,
-    );
-    for (const m of multi) console.log(`  ${m.count}× ${m.name}`);
+  // Multi-location names across the cities in this run (ADR-014)
+  const multi = findMultiLocation(allCandidates, config.pipeline.discover.multiLocationThreshold);
+  if (reports[0]) reports[0].multiLocation = multi;
+
+  const stamp = now.slice(0, 10);
+  const suffix = args.cities.length === 1 ? `-${args.cities[0]}` : '';
+  const md = [
+    `# CoffeeLog pipeline report ${stamp}${args.dryRun ? ' (dry run)' : ''}`,
+    '',
+    ...reports.map(reportMarkdown),
+  ].join('\n\n');
+  await writeFile(path.join(OUT_DIR, `report-${stamp}${suffix}.md`), md);
+  await writeFile(
+    path.join(OUT_DIR, `report-${stamp}${suffix}.json`),
+    JSON.stringify(reports, null, 2),
+  );
+  console.log(`\n${md}\n\n[pipeline] report written to pipeline/out/report-${stamp}${suffix}.md`);
+  if (failed) {
+    console.error('[pipeline] more than 50% of crawls failed in at least one city');
+    return 1;
   }
-  for (const s of PENDING_STAGES)
-    console.log(`[pipeline] stage ${s}: not implemented yet (see 06 Build Plan)`);
-  if (!args.dryRun)
-    console.log('[pipeline] publish is not implemented yet; nothing was written to Firestore.');
   return 0;
 }
 

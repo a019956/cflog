@@ -129,11 +129,17 @@ export interface CityIndexDoc {
 }
 
 export interface PipelineCafeState {
+  /** short hash of the published café doc (excluding timestamps) */
   contentHash: string;
-  pageHashes: Record<string, string>;
+  /** short hash over all fetched pages (url + content hash); unchanged → skip extraction */
+  pagesHash: string;
   lastExtractedAt?: IsoDate;
   crawlStatus: CrawlStatus;
+  /** consecutive successful crawls a bean was missing from (removed at 2) */
   beanMiss: Record<string, number>;
+  /** first time each bean id was seen */
+  beanFirstSeen: Record<string, IsoDate>;
+  /** consecutive runs the café was absent from discovery (deleted at 4) */
   hiddenRuns: number;
 }
 

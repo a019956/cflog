@@ -13,6 +13,7 @@
     "@cflog/shared": "*",
     "@duckdb/node-api": "^1.5.5-r.5",
     "cheerio": "^1.2.0",
+    "firebase-admin": "^14.5.0",
     "robots-parser": "^3.0.1",
     "unpdf": "^1.8.1",
     "yaml": "^2.9.1"
