@@ -12,7 +12,7 @@ export const palette = {
     border: '#E4D8C8',
     markerBeans: '#B3261E',
     markerMenuOnly: '#8C6A4F',
-    markerNone: '#B5A898',
+    markerNone: '#857564',
     banner: '#F3E3C8',
     danger: '#9A1B14',
   },

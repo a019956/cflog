@@ -30,13 +30,13 @@ This contract records observable product behaviour. Café places come from Overt
 ## Behavioral rules
 
 - R1: Never show ratings, review counts or popularity metrics.
-- R2: Every café sheet shows "Updated N days ago" (from `lastCrawledAt`) and a link to the café's website.
+- R2: Every café sheet shows "Updated N days ago" (from `lastCrawledAt`) and, when the café has a known website, a Website button.
 - R3: Ordering is beans > menu-only > none, then distance if location is granted, else name. With any bean filter active (roast, process, origin, flavor, variety, decaf), only cafés with bean data appear. With no filters, no-data cafés use the hollow marker.
 - R4: Filters persist across Map/List switches and sheet opens. Reset clears every dimension.
 - R5: Single-dimension chip sheets apply live and show a live count with Done. The All filters sheet applies on "Show N places".
 - R6: Outbound links open in the in-app browser. Directions opens the OS maps app.
-- R7: Map attribution ("OpenFreeMap © OpenMapTiles Data from OpenStreetMap") is always visible.
+- R7: Map attribution ("OpenFreeMap © OpenMapTiles Data from OpenStreetMap") is always visible as a text line under the header in map view (never covered by bottom sheets).
 - R8: No account UI in v1.
 - R9: The last selected city is restored on launch (AsyncStorage). First launch: NYC, unless location is already granted and a launch city is within 50 km.
-- R10: Android back closes the topmost sheet before leaving the app.
-- R11: WCAG 2.2 AA basics: 44×44pt targets, AA contrast, labels on markers, clusters and icon buttons, reduce-motion honoured. English (US) formats: $, miles.
+- R10: Android back closes the topmost sheet (filter/city sheet, then the café sheet) before leaving the app. Sheets have a backdrop; tapping it closes the sheet.
+- R11: WCAG 2.2 AA basics: 44×44pt targets, AA contrast (tested), labels on icon buttons and list rows, reduce-motion honoured (live). Map markers are native map layers that screen readers can't reach, so the List view is the accessible equivalent (the map's label says so). The café sheet has a labelled Close button. English (US) formats: $, miles.

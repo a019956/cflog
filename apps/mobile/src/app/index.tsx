@@ -1,6 +1,6 @@
-import { applyFilters, sortCafes } from '@cflog/shared';
-import { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { applyFilters, MAP_ATTRIBUTION, sortCafes } from '@cflog/shared';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { BackHandler, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CafeSheet } from '@/cafe/CafeSheet';
@@ -25,88 +25,145 @@ import { useTheme } from '@/theme/ThemeProvider';
 export default function MapScreen() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const s = useAppStore();
-  const cafesState = useCityCafes(s.cityId);
+  // Per-field selectors: the screen doesn't re-render on draft edits inside the filter sheet.
+  const cityId = useAppStore((s) => s.cityId);
+  const filters = useAppStore((s) => s.filters);
+  const viewMode = useAppStore((s) => s.viewMode);
+  const selectedCafeId = useAppStore((s) => s.selectedCafeId);
+  const userLocation = useAppStore((s) => s.userLocation);
+  const openSheet = useAppStore((s) => s.openSheet);
+  const toast = useAppStore((s) => s.toast);
+  const {
+    setCity,
+    setUserLocation,
+    showToast,
+    openCityPicker,
+    openFilters,
+    resetFilters,
+    setViewMode,
+    selectCafe,
+    closeSheet,
+  } = useAppStore.getState();
+
+  const cafesState = useCityCafes(cityId);
   const [locating, setLocating] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(insets.top + 120);
   const sample = getDataSource().kind === 'sample';
 
   const all = useMemo(() => (cafesState.status === 'ready' ? cafesState.data : []), [cafesState]);
   const visible = useMemo(
-    () => sortCafes(applyFilters(all, s.filters), s.userLocation),
-    [all, s.filters, s.userLocation],
+    () => sortCafes(applyFilters(all, filters), userLocation),
+    [all, filters, userLocation],
   );
+
+  // Android back: close the topmost sheet first, then the café sheet, then leave (R10).
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (openSheet) {
+        closeSheet();
+        return true;
+      }
+      if (selectedCafeId) {
+        selectCafe(null);
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [openSheet, selectedCafeId, closeSheet, selectCafe]);
 
   const onNearMe = useCallback(async () => {
     setLocating(true);
     const r = await requestUserLocation();
     setLocating(false);
     if (!r.ok) {
-      s.showToast(
+      showToast(
         r.reason === 'denied'
           ? 'Location is off. Pick a city instead.'
           : "Couldn't get your location.",
       );
-      s.openCityPicker();
+      openCityPicker();
       return;
     }
     const near = resolveNearMe(r.point);
     if (near.kind === 'city') {
-      s.setCity(near.cityId);
-      s.setUserLocation(r.point);
+      setCity(near.cityId); // clears any previous position…
+      setUserLocation(r.point); // …then centres on the user
     } else {
-      s.setUserLocation(null);
-      s.showToast(OUT_OF_RANGE_MESSAGE);
-      s.openCityPicker();
+      setUserLocation(null);
+      showToast(OUT_OF_RANGE_MESSAGE);
+      openCityPicker();
     }
-  }, [s]);
+  }, [openCityPicker, setCity, setUserLocation, showToast]);
 
+  const hideToast = useCallback(() => showToast(null), [showToast]);
+  const closeCafe = useCallback(() => selectCafe(null), [selectCafe]);
   const count = visible.length;
-  const header = (
-    <SafeAreaView edges={['top']} pointerEvents="box-none" style={styles.overlay}>
-      <TopBar
-        cityId={s.cityId}
-        onCityPress={s.openCityPicker}
-        onNearMe={onNearMe}
-        locating={locating}
-      />
-      <FilterChips filters={s.filters} onOpen={s.openFilters} onReset={s.resetFilters} />
-      <View style={styles.status} pointerEvents="box-none">
-        {sample ? (
-          <Banner message="Sample data: these places are fictional until the weekly data run fills the database." />
-        ) : null}
-        {cafesState.status === 'loading' ? <Banner message="Loading places…" /> : null}
-        {cafesState.status === 'error' ? (
-          <Banner message="Couldn't load places." actionLabel="Retry" onAction={cafesState.retry} />
-        ) : null}
-        {cafesState.status === 'ready' && count === 0 ? (
-          <Banner
-            message="No places match these filters."
-            actionLabel="Clear filters"
-            onAction={s.resetFilters}
-          />
-        ) : null}
-      </View>
-    </SafeAreaView>
-  );
 
   return (
     <View style={[styles.root, { backgroundColor: t.colors.bg }]}>
-      {s.viewMode === 'map' ? (
+      {viewMode === 'map' ? (
         <CafeMap
-          cityId={s.cityId}
+          cityId={cityId}
           cafes={visible}
-          userLocation={s.userLocation}
-          onSelect={s.selectCafe}
+          userLocation={userLocation}
+          onSelect={selectCafe}
         />
       ) : (
         <CafeList
           cafes={visible}
-          userLocation={s.userLocation}
-          onSelect={s.selectCafe}
-          topInset={insets.top + 150}
+          userLocation={userLocation}
+          onSelect={selectCafe}
+          topInset={headerHeight + 8}
         />
       )}
-      {header}
+
+      <SafeAreaView
+        edges={['top']}
+        pointerEvents="box-none"
+        style={styles.overlay}
+        onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
+      >
+        <TopBar
+          cityId={cityId}
+          onCityPress={openCityPicker}
+          onNearMe={onNearMe}
+          locating={locating}
+        />
+        <FilterChips filters={filters} onOpen={openFilters} onReset={resetFilters} />
+        <View style={styles.status} pointerEvents="box-none">
+          {sample ? (
+            <Banner message="Sample data: these places are fictional until the weekly data run fills the database." />
+          ) : null}
+          {cafesState.status === 'loading' ? <Banner message="Loading places…" /> : null}
+          {cafesState.status === 'error' ? (
+            <Banner
+              message="Couldn't load places."
+              actionLabel="Retry"
+              onAction={cafesState.retry}
+            />
+          ) : null}
+          {cafesState.status === 'ready' && count === 0 ? (
+            <Banner
+              message="No places match these filters."
+              actionLabel="Clear filters"
+              onAction={resetFilters}
+            />
+          ) : null}
+          {viewMode === 'map' ? (
+            // Always-visible map attribution (R7); sits under the header so bottom sheets never cover it.
+            <Text
+              variant="caption"
+              muted
+              style={[styles.attribution, { backgroundColor: t.colors.surface }]}
+              accessibilityRole="text"
+            >
+              {MAP_ATTRIBUTION}
+            </Text>
+          ) : null}
+        </View>
+      </SafeAreaView>
+
       <View style={[styles.bottom, { bottom: insets.bottom + 16 }]} pointerEvents="box-none">
         <View
           style={[styles.pill, { backgroundColor: t.colors.surface, borderColor: t.colors.border }]}
@@ -116,22 +173,23 @@ export default function MapScreen() {
           </Text>
         </View>
         <Button
-          label={s.viewMode === 'map' ? 'List' : 'Map'}
+          label={viewMode === 'map' ? 'List' : 'Map'}
           accessibilityHint={
-            s.viewMode === 'map' ? 'Shows the results as a list' : 'Shows the results on the map'
+            viewMode === 'map' ? 'Shows the results as a list' : 'Shows the results on the map'
           }
-          onPress={() => s.setViewMode(s.viewMode === 'map' ? 'list' : 'map')}
+          onPress={() => setViewMode(viewMode === 'map' ? 'list' : 'map')}
         />
       </View>
+
       <CafeSheet
-        cafeId={s.selectedCafeId}
-        filters={s.filters}
-        userLocation={s.userLocation}
-        onClose={() => s.selectCafe(null)}
+        cafeId={selectedCafeId}
+        filters={filters}
+        userLocation={userLocation}
+        onClose={closeCafe}
       />
       <FilterSheet cafes={all} />
       <CityPickerSheet />
-      <Toast message={s.toast} onHide={() => s.showToast(null)} />
+      <Toast message={toast} onHide={hideToast} top={headerHeight + 8} />
     </View>
   );
 }
@@ -140,6 +198,13 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   overlay: { position: 'absolute', top: 0, left: 0, right: 0 },
   status: { paddingHorizontal: 16, gap: 8 },
+  attribution: {
+    alignSelf: 'flex-end',
+    fontSize: 11,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
   bottom: {
     position: 'absolute',
     left: 16,

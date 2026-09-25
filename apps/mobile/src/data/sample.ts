@@ -204,7 +204,7 @@ function buildCafe(cityIdx: number, i: number): Cafe {
     lat,
     lng,
     geohash: '',
-    website: undefined,
+    website: `https://example.com/coffeelog-sample/${id}`,
     platform: beans.length ? 'shopify' : 'other',
     dataStatus: facets.dataStatus,
     facets,

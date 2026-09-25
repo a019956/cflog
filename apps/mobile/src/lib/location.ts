@@ -15,3 +15,15 @@ export async function requestUserLocation(): Promise<LocationResult> {
     return { ok: false, reason: 'error' };
   }
 }
+
+/** First launch only: the last known position if permission was ALREADY granted. Never prompts (R9). */
+export async function lastKnownIfGranted(): Promise<LngLat | null> {
+  try {
+    const perm = await Location.getForegroundPermissionsAsync();
+    if (perm.status !== 'granted') return null;
+    const pos = await Location.getLastKnownPositionAsync();
+    return pos ? [pos.coords.longitude, pos.coords.latitude] : null;
+  } catch {
+    return null;
+  }
+}

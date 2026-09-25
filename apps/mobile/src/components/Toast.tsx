@@ -1,14 +1,20 @@
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { Text } from './Text';
 
-/** Short message above the bottom bar; hides after 4 s and is announced to screen readers. */
-export function Toast({ message, onHide }: { message: string | null; onHide: () => void }) {
+/** Short message below the top bar (above any bottom sheet); hides after 4 s and is announced to screen readers. */
+export function Toast({
+  message,
+  onHide,
+  top,
+}: {
+  message: string | null;
+  onHide: () => void;
+  top: number;
+}) {
   const t = useTheme();
-  const insets = useSafeAreaInsets();
   useEffect(() => {
     if (!message) return;
     const id = setTimeout(onHide, 4000);
@@ -19,7 +25,7 @@ export function Toast({ message, onHide }: { message: string | null; onHide: () 
     <View
       accessibilityRole="alert"
       accessibilityLiveRegion="assertive"
-      style={[styles.toast, { bottom: insets.bottom + 80, backgroundColor: t.colors.text }]}
+      style={[styles.toast, { top, backgroundColor: t.colors.text }]}
     >
       <Text variant="label" color={t.colors.bg}>
         {message}

@@ -1,10 +1,11 @@
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { distanceKm, orderBeans, type Cafe, type Filters, type LngLat } from '@cflog/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
+import { IconButton } from '@/components/IconButton';
 import { Text } from '@/components/Text';
 import { useCafe } from '@/data/hooks';
 import { distanceLabel, groupMenu, kindLabel, updatedLabel } from '@/lib/format';
@@ -166,16 +167,6 @@ export function CafeSheet({ cafeId, filters, userLocation, onClose }: Props) {
     else ref.current?.close();
   }, [cafeId]);
 
-  // Android back closes the sheet first (R10).
-  useEffect(() => {
-    if (!cafeId) return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      onClose();
-      return true;
-    });
-    return () => sub.remove();
-  }, [cafeId, onClose]);
-
   return (
     <BottomSheet
       ref={ref}
@@ -189,6 +180,11 @@ export function CafeSheet({ cafeId, filters, userLocation, onClose }: Props) {
       accessibilityLabel="Café details"
     >
       <BottomSheetScrollView contentContainerStyle={styles.scroll}>
+        {cafeId ? (
+          <View style={styles.closeRow}>
+            <IconButton icon="close" label="Close café details" onPress={onClose} />
+          </View>
+        ) : null}
         {!cafeId ? null : state.status === 'loading' ? (
           <View style={styles.skeletons} accessibilityLabel="Loading café">
             {[0, 1, 2].map((i) => (
@@ -214,6 +210,7 @@ export function CafeSheet({ cafeId, filters, userLocation, onClose }: Props) {
 
 const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 20, paddingBottom: 48 },
+  closeRow: { alignItems: 'flex-end', marginTop: -8, marginRight: -12 },
   body: { gap: 14 },
   header: { gap: 4 },
   actions: { flexDirection: 'row', gap: 10 },

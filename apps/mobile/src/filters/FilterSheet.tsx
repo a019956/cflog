@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/Button';
+import { SheetBackdrop } from '@/components/SheetBackdrop';
 import { Text } from '@/components/Text';
 import { useAppStore } from '@/state/store';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -43,7 +44,8 @@ export function FilterSheet({ cafes }: { cafes: readonly CafeSummary[] }) {
 
   const current = all ? draft : filters;
   const onChange = all ? setDraft : setFilters;
-  const n = countMatching(cafes, current);
+  // Counting only matters while the sheet is open.
+  const n = open ? countMatching(cafes, current) : 0;
   const title = all ? 'All filters' : (DIMS.find((d) => d.key === dim)?.label ?? 'Filters');
 
   const renderFooter = useCallback(
@@ -75,6 +77,7 @@ export function FilterSheet({ cafes }: { cafes: readonly CafeSummary[] }) {
       backgroundStyle={{ backgroundColor: t.colors.bg }}
       handleIndicatorStyle={{ backgroundColor: t.colors.border }}
       footerComponent={renderFooter}
+      backdropComponent={SheetBackdrop}
       accessibilityLabel={`${title} filter sheet`}
     >
       <BottomSheetView style={styles.header}>

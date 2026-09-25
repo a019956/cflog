@@ -120,4 +120,34 @@ describe('app store', () => {
       openSheet: null,
     });
   });
+
+  it('clears the near-me position when a city is picked by hand', () => {
+    useAppStore.setState({ userLocation: [-73.99, 40.73] });
+    useAppStore.getState().setCity('boston');
+    expect(useAppStore.getState().userLocation).toBeNull();
+  });
+
+  it('ignores opening a sheet while another is open (keeps the draft)', () => {
+    const s = useAppStore.getState();
+    s.openFilters('all');
+    useAppStore.getState().setDraftFilters({ decafOnly: true });
+    useAppStore.getState().openFilters('roast');
+    expect(useAppStore.getState()).toMatchObject({
+      filterDim: 'all',
+      draftFilters: { decafOnly: true },
+    });
+    useAppStore.getState().openCityPicker();
+    expect(useAppStore.getState().openSheet).toBe('filters');
+  });
+
+  it('uses an already-granted location on first launch without prompting', async () => {
+    const Location = require('expo-location');
+    Location.getForegroundPermissionsAsync.mockResolvedValueOnce({ status: 'granted' });
+    Location.getLastKnownPositionAsync.mockResolvedValueOnce({
+      coords: { longitude: -75.16, latitude: 39.95 },
+    });
+    await useAppStore.getState().hydrate();
+    expect(useAppStore.getState().cityId).toBe('philadelphia');
+    expect(Location.requestForegroundPermissionsAsync).not.toHaveBeenCalled();
+  });
 });

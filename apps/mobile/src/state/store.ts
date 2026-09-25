@@ -4,6 +4,8 @@ import { CITIES, type Filters, type LngLat } from '@cflog/shared';
 import { create } from 'zustand';
 
 import type { FilterDim } from '@/filters/dims';
+import { lastKnownIfGranted } from '@/lib/location';
+import { resolveNearMe } from '@/lib/nearMe';
 import { toggleValue, clearDim } from '@/filters/dims';
 
 export const LAST_CITY_KEY = 'cflog.lastCityId';
@@ -64,11 +66,22 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch {
       saved = null;
     }
-    set({ hydrated: true, ...(knownCity(saved) ? { cityId: saved } : {}) });
+    if (knownCity(saved)) {
+      set({ hydrated: true, cityId: saved });
+      return;
+    }
+    // First launch: use the nearest launch city if location was already granted (no prompt, R9).
+    const point = await lastKnownIfGranted();
+    const near = point ? resolveNearMe(point) : null;
+    set({
+      hydrated: true,
+      ...(near?.kind === 'city' ? { cityId: near.cityId, userLocation: point } : {}),
+    });
   },
   setCity: (cityId) => {
     if (!knownCity(cityId)) return;
-    set({ cityId, selectedCafeId: null, openSheet: null });
+    // A manual city choice drops the near-me position, so the map centres on the city.
+    set({ cityId, selectedCafeId: null, openSheet: null, userLocation: null });
     AsyncStorage.setItem(LAST_CITY_KEY, cityId).catch(() => undefined);
   },
   toggleFilter: (dim, value) => set((s) => ({ filters: toggleValue(s.filters, dim, value) })),
@@ -78,9 +91,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   setViewMode: (viewMode) => set({ viewMode }),
   selectCafe: (selectedCafeId) => set({ selectedCafeId, openSheet: null }),
   setUserLocation: (userLocation) => set({ userLocation }),
-  openCityPicker: () => set({ openSheet: 'city' }),
+  openCityPicker: () => set((s) => (s.openSheet ? {} : { openSheet: 'city' })),
+  // Ignored while another sheet is open, so an open draft is never overwritten.
   openFilters: (filterDim) =>
-    set((s) => ({ openSheet: 'filters', filterDim, draftFilters: s.filters })),
+    set((s) => (s.openSheet ? {} : { openSheet: 'filters', filterDim, draftFilters: s.filters })),
   setDraftFilters: (draftFilters) => set({ draftFilters }),
   applyDraftFilters: () => set((s) => ({ filters: s.draftFilters, openSheet: null })),
   closeSheet: () => set({ openSheet: null }),

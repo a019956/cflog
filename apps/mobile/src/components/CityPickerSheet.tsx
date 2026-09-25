@@ -7,6 +7,7 @@ import { useCityCounts } from '@/data/hooks';
 import { useAppStore } from '@/state/store';
 import { useTheme } from '@/theme/ThemeProvider';
 import { TOUCH } from '@/theme/tokens';
+import { SheetBackdrop } from './SheetBackdrop';
 import { Text } from './Text';
 
 /** City picker grouped by state (03 § Screens). Counts load lazily; the list shows without them on failure. */
@@ -32,6 +33,7 @@ export function CityPickerSheet() {
       onDismiss={() => useAppStore.getState().openSheet === 'city' && close()}
       backgroundStyle={{ backgroundColor: t.colors.bg }}
       handleIndicatorStyle={{ backgroundColor: t.colors.border }}
+      backdropComponent={SheetBackdrop}
     >
       <BottomSheetScrollView contentContainerStyle={styles.body}>
         <Text variant="title" accessibilityRole="header">

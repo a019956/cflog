@@ -94,7 +94,13 @@ export function getDataSource(): DataSource {
   if (current) return current;
   if (firebaseConfigured() && !CONFIG.useSampleData) {
     let reader: Promise<DocReader> | null = null;
-    const read: DocReader = async (c, id) => (await (reader ??= firestoreReader()))(c, id);
+    const read: DocReader = async (c, id) => {
+      reader ??= firestoreReader().catch((err: unknown) => {
+        reader = null; // let Retry re-initialise
+        throw err;
+      });
+      return (await reader)(c, id);
+    };
     current = withCache(createFirestoreSource(read));
   } else {
     // eslint-disable-next-line @typescript-eslint/no-require-imports

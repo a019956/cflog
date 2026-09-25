@@ -37,6 +37,11 @@ export function CafeMap({ cityId, cafes, userLocation, onSelect }: Props) {
     AccessibilityInfo.isReduceMotionEnabled()
       .then((v) => (reduceMotion.current = v))
       .catch(() => undefined);
+    const sub = AccessibilityInfo.addEventListener(
+      'reduceMotionChanged',
+      (v) => (reduceMotion.current = v),
+    );
+    return () => sub.remove();
   }, []);
 
   // Move to the city (or the user) when either changes.
@@ -67,8 +72,7 @@ export function CafeMap({ cityId, cafes, userLocation, onSelect }: Props) {
     <Map
       style={StyleSheet.absoluteFill}
       mapStyle={t.mapStyle}
-      attribution
-      attributionPosition={{ bottom: 8, left: 8 }}
+      attribution={false}
       logo={false}
       compass={false}
       accessibilityLabel={`Map of ${city.name} with ${cafes.length} places. ${MAP_ATTRIBUTION}. Use the list view to browse with a screen reader.`}
@@ -87,7 +91,12 @@ export function CafeMap({ cityId, cafes, userLocation, onSelect }: Props) {
           if (!f) return;
           const p = f.properties as { cluster?: boolean; cluster_id?: number; id?: string } | null;
           if (p?.cluster && p.cluster_id !== undefined && f.geometry.type === 'Point') {
-            const zoom = await source.current?.getClusterExpansionZoom(p.cluster_id);
+            let zoom: number | undefined;
+            try {
+              zoom = await source.current?.getClusterExpansionZoom(p.cluster_id);
+            } catch {
+              zoom = undefined;
+            }
             const center = f.geometry.coordinates as LngLat;
             if (reduceMotion.current) camera.current?.jumpTo({ center, zoom: zoom ?? 14 });
             else camera.current?.easeTo({ center, zoom: zoom ?? 14, duration: 500 });
