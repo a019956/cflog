@@ -3,9 +3,9 @@
   "repo": "D:\\_CODING\\cflog",
   "docs": "G:\\My Drive\\_ObsidianVault\\Coding\\CoffeeLog",
   "phase": "building",
-  "milestone": "M3",
-  "current_wp": "WP-07",
-  "wp_status": "next",
+  "milestone": "M4",
+  "current_wp": "WP-11",
+  "wp_status": "needs Min (secrets, workflow move)",
   "engine": "claude",
   "engines": [
     "claude"
