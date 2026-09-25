@@ -2,7 +2,7 @@
   "name": "cflog",
   "private": true,
   "version": "0.1.0",
-  "description": "CoffeeLog: specialty roasters, cafés and their beans on a map.",
+  "description": "CoffeeLog: specialty roasters, caf\u00e9s and their beans on a map.",
   "workspaces": [
     "packages/*",
     "pipeline",
@@ -21,5 +21,9 @@
   },
   "devDependencies": {
     "prettier": "^3.6.0"
+  },
+  "overrides": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
   }
 }
