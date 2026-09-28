@@ -18,7 +18,11 @@ const approxBytes = (o: unknown) => Buffer.byteLength(JSON.stringify(o ?? null),
  * Service-account credentials from FIREBASE_SERVICE_ACCOUNT (the key JSON itself — GitHub secret) or
  * FIREBASE_SERVICE_ACCOUNT_FILE (a path to the downloaded key file — local runs).
  */
-export function readServiceAccount(env: NodeJS.ProcessEnv = process.env): { project_id?: string; client_email?: string; private_key?: string } {
+export function readServiceAccount(env: NodeJS.ProcessEnv = process.env): {
+  project_id?: string;
+  client_email?: string;
+  private_key?: string;
+} {
   const file = env.FIREBASE_SERVICE_ACCOUNT_FILE;
   let raw = env.FIREBASE_SERVICE_ACCOUNT?.trim();
   if (file) {
@@ -39,7 +43,8 @@ export function readServiceAccount(env: NodeJS.ProcessEnv = process.env): { proj
   } catch {
     throw new Error('Firebase service-account credentials are not valid JSON');
   }
-  if (!creds.private_key || !creds.client_email) throw new Error('Firebase service-account JSON is missing private_key/client_email');
+  if (!creds.private_key || !creds.client_email)
+    throw new Error('Firebase service-account JSON is missing private_key/client_email');
   return creds;
 }
 

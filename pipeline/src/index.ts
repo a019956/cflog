@@ -15,10 +15,19 @@ import {
   type Candidate,
 } from './discover/index.js';
 import { GeminiExtractor } from './extract/index.js';
-import { FirestoreStore, firestoreFromEnv, MemoryStore, withWriteBudget } from './publish/index.js';
+import { MemoryStore, withWriteBudget, type DataStore } from './publish/index.js';
 import { reportMarkdown, runCity, type CityRunReport } from './run.js';
 
 export const OUT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../out');
+
+// firebase-admin 14 and @google-cloud/firestore 9 need Node 22+; npm silently skips Firestore on older Node.
+const NODE_MAJOR = Number(process.versions.node.split('.')[0]);
+if (NODE_MAJOR < 22) {
+  console.error(
+    `[pipeline] Node ${process.versions.node} is too old: CoffeeLog needs Node 22 or newer (install Node 22 LTS, then delete node_modules and run npm install).`,
+  );
+  process.exit(2);
+}
 
 // Local runs: load the repo-root .env (git-ignored). CI passes secrets as real env vars instead.
 const ROOT_ENV = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.env');
@@ -58,7 +67,13 @@ async function run(args: PipelineArgs): Promise<number> {
   const contactUrl = process.env.CRAWLER_CONTACT_URL || 'https://github.com/a019956/cflog#bot';
   const maxWrites = envNum('PIPELINE_MAX_WRITES', 18000);
 
-  const inner = args.dryRun ? new MemoryStore() : new FirestoreStore(firestoreFromEnv());
+  let inner: DataStore;
+  if (args.dryRun) inner = new MemoryStore();
+  else {
+    // Loaded only for live runs, so dry runs work even without firebase-admin's Firestore client.
+    const { FirestoreStore, firestoreFromEnv } = await import('./publish/firestore.js');
+    inner = new FirestoreStore(firestoreFromEnv());
+  }
   const store = withWriteBudget(inner, maxWrites);
 
   let gemini: GeminiExtractor | null = null;
