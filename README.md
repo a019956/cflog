@@ -35,7 +35,7 @@ Without `GEMINI_API_KEY` only Shopify/WooCommerce catalogues are read. The weekl
 ## One-time setup (owner)
 
 1. Create a Firebase project (Spark plan) and a Firestore database. Deploy the rules: `npx firebase-tools deploy --only firestore` (from `firebase/`).
-2. Create a service account with Firestore write access and store its JSON in the GitHub secret `FIREBASE_SERVICE_ACCOUNT`.
+2. Firebase console → Project settings → Service accounts → **Generate new private key**. Save the downloaded JSON as `secrets/firebase-service-account.json` (git-ignored; local runs read it via `FIREBASE_SERVICE_ACCOUNT_FILE` in `.env`). Paste the **file's contents** into the GitHub secret `FIREBASE_SERVICE_ACCOUNT`.
 3. Get a Gemini API key (Google AI Studio, free tier) and add the secrets `GEMINI_API_KEY` and `GEMINI_MODEL`.
 4. Set `CRAWLER_CONTACT_URL` and `CONTACT_EMAIL` (repo variables), used in the crawler user-agent and on the About screen. Optional variables: `GEMINI_RPM`, `GEMINI_MAX_CALLS`, `PIPELINE_MAX_WRITES`.
 5. Move `.plan-code/pending/pipeline.yml` to `.github/workflows/pipeline.yml` (weekly job, Mondays 09:00 UTC; run it by hand from the Actions tab, with a dry run first).
