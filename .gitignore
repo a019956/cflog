@@ -13,3 +13,5 @@ pipeline/out/
 *.log
 .DS_Store
 serviceAccount*.json
+*firebase-adminsdk*.json
+secrets/

@@ -1,4 +1,5 @@
 // Firestore implementation of DataStore (firebase-admin). Writes are batched (≤400 ops per commit).
+import { existsSync, readFileSync } from 'node:fs';
 import type { Cafe, CityDoc, CityIndexDoc, PipelineStateDoc } from '@cflog/shared';
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import {
@@ -13,18 +14,37 @@ import type { DataStore } from './store.js';
 const MAX_BATCH_BYTES = 8 * 1024 * 1024;
 const approxBytes = (o: unknown) => Buffer.byteLength(JSON.stringify(o ?? null), 'utf8') + 200;
 
-export function firestoreFromEnv(env: NodeJS.ProcessEnv = process.env): Firestore {
-  const raw = env.FIREBASE_SERVICE_ACCOUNT;
+/**
+ * Service-account credentials from FIREBASE_SERVICE_ACCOUNT (the key JSON itself — GitHub secret) or
+ * FIREBASE_SERVICE_ACCOUNT_FILE (a path to the downloaded key file — local runs).
+ */
+export function readServiceAccount(env: NodeJS.ProcessEnv = process.env): { project_id?: string; client_email?: string; private_key?: string } {
+  const file = env.FIREBASE_SERVICE_ACCOUNT_FILE;
+  let raw = env.FIREBASE_SERVICE_ACCOUNT?.trim();
+  if (file) {
+    if (!existsSync(file)) throw new Error(`FIREBASE_SERVICE_ACCOUNT_FILE not found: ${file}`);
+    raw = readFileSync(file, 'utf8');
+  }
   if (!raw)
     throw new Error(
-      'FIREBASE_SERVICE_ACCOUNT is not set (service-account JSON). Use --dry-run to run without Firestore.',
+      'No Firebase credentials: set FIREBASE_SERVICE_ACCOUNT (key JSON) or FIREBASE_SERVICE_ACCOUNT_FILE (path to the key file). Use --dry-run to run without Firestore.',
+    );
+  if (/^[^{\s]+@[^\s]+\.iam\.gserviceaccount\.com$/.test(raw))
+    throw new Error(
+      'FIREBASE_SERVICE_ACCOUNT holds the service-account email, not its key. Download the JSON key (Firebase console → Project settings → Service accounts → Generate new private key).',
     );
   let creds: { project_id?: string; client_email?: string; private_key?: string };
   try {
     creds = JSON.parse(raw);
   } catch {
-    throw new Error('FIREBASE_SERVICE_ACCOUNT is not valid JSON');
+    throw new Error('Firebase service-account credentials are not valid JSON');
   }
+  if (!creds.private_key || !creds.client_email) throw new Error('Firebase service-account JSON is missing private_key/client_email');
+  return creds;
+}
+
+export function firestoreFromEnv(env: NodeJS.ProcessEnv = process.env): Firestore {
+  const creds = readServiceAccount(env);
   const app =
     getApps()[0] ??
     initializeApp({ credential: cert(creds as never), projectId: creds.project_id });

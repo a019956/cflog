@@ -1,4 +1,5 @@
 // CoffeeLog weekly pipeline (02 Architecture): discover → crawl → extract → normalise → publish → report.
+import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +19,16 @@ import { FirestoreStore, firestoreFromEnv, MemoryStore, withWriteBudget } from '
 import { reportMarkdown, runCity, type CityRunReport } from './run.js';
 
 export const OUT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../out');
+
+// Local runs: load the repo-root .env (git-ignored). CI passes secrets as real env vars instead.
+const ROOT_ENV = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.env');
+if (existsSync(ROOT_ENV)) {
+  try {
+    process.loadEnvFile(ROOT_ENV);
+  } catch (err) {
+    console.warn(`[pipeline] could not read .env: ${(err as Error).message}`);
+  }
+}
 
 const envNum = (name: string, fallback: number) => {
   const v = Number(process.env[name]);
